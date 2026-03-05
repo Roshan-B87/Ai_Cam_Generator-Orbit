@@ -1,0 +1,36 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from routers import ingest, research, appraise, cam, mca
+from routers.databricks import router as databricks_router
+
+app = FastAPI(
+    title="Intelli-Credit API",
+    description="AI-powered Corporate Credit Appraisal Engine",
+    version="1.0.0"
+)
+
+# Allow React frontend to talk to this backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register all route groups
+app.include_router(ingest.router,       prefix="/ingest",      tags=["Data Ingestor"])
+app.include_router(databricks_router,   prefix="/databricks",  tags=["Databricks Connector"])
+app.include_router(research.router,     prefix="/research",    tags=["Research Agent"])
+app.include_router(appraise.router,     prefix="/appraise",    tags=["Credit Scoring"])
+app.include_router(cam.router,          prefix="/cam",         tags=["CAM Generator"])
+app.include_router(mca.router,          prefix="/mca",         tags=["MCA Registry"])
+
+@app.get("/")
+def health_check():
+    return {"status": "Intelli-Credit API is live 🚀"}

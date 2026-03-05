@@ -1,0 +1,36 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+python-dotenv
+httpx
+
+# LLM
+groq
+
+# Web Search
+tavily-python
+
+# RAG — embeddings + vector store
+langchain
+langchain-community
+langchain-huggingface
+langchain-text-splitters
+faiss-cpu
+sentence-transformers
+
+# PDF Parsing
+pymupdf
+pytesseract
+pillow
+pdfplumber
+tabulate
+
+# Data
+pandas
+openpyxl
+
+# Document Generation
+python-docx
+reportlab
