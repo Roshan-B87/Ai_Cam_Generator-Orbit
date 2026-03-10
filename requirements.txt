@@ -12,6 +12,10 @@ groq
 # Web Search
 tavily-python
 
+# CPU-only PyTorch (200MB vs 800MB GPU version)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+
 # RAG — embeddings + vector store
 langchain
 langchain-community
