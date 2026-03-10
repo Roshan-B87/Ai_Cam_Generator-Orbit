@@ -27,7 +27,7 @@ class DatabricksIngestRequest(BaseModel):
     company_id: Optional[str] = None
     data_source: str = "databricks"           # "databricks" | "manual"
     catalog: Optional[str] = "credit_data"     # Databricks Unity Catalog
-    schema: Optional[str] = "raw_financials"   # Databricks schema/database
+    db_schema: Optional[str] = "raw_financials" # Databricks schema/database
     table_prefix: Optional[str] = None         # e.g. "tata_motors"
 
 
@@ -189,9 +189,9 @@ async def ingest_from_databricks(request: DatabricksIngestRequest):
         "company_name": request.company_name,
         "status": "ready",
         "source": "databricks",
-        "files": [f"databricks://{request.catalog}.{request.schema}"],
+        "files": [f"databricks://{request.catalog}.{request.db_schema}"],
         "parsed_docs": [{
-            "file": f"databricks://{request.catalog}.{request.schema}",
+            "file": f"databricks://{request.catalog}.{request.db_schema}",
             "doc_type": "databricks_structured",
             "pages": 0,
             "ocr_pages": [],
@@ -201,7 +201,7 @@ async def ingest_from_databricks(request: DatabricksIngestRequest):
         "rag_ready": False,
         "databricks_metadata": {
             "catalog": request.catalog,
-            "schema": request.schema,
+            "schema": request.db_schema,
             "tables_queried": ["balance_sheet", "profit_loss", "cash_flow", "gst_returns", "bank_statements", "cibil_report"],
         },
     }
@@ -230,7 +230,7 @@ async def ingest_from_databricks(request: DatabricksIngestRequest):
 
     return DatabricksIngestResponse(
         company_id=company_id,
-        source=f"databricks://{request.catalog}.{request.schema}",
+        source=f"databricks://{request.catalog}.{request.db_schema}",
         tables_loaded=tables,
         records_ingested=len(tables) * 12,  # Simulated record count
         status="ready",

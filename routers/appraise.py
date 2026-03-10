@@ -1,9 +1,10 @@
 from fastapi import APIRouter
 from models.request_models import ScoringRequest, WhatIfRequest
-from models.response_models import ScoreResponse, ExplainResponse, WhatIfResponse
+from models.response_models import ScoreResponse, ExplainResponse, WhatIfResponse, SWOTResponse
 from services.scorer import calculate_five_cs_score
 from services.claude_agent import adjust_score_with_notes
 from services.explainer import generate_explanation, run_what_if
+from services.swot_service import generate_swot
 import json, os
 
 router = APIRouter()
@@ -140,3 +141,16 @@ async def what_if_analysis(request: WhatIfRequest):
         requested_amount=request.requested_amount,
     )
     return WhatIfResponse(**result)
+
+
+@router.post("/swot/{company_id}", response_model=SWOTResponse)
+async def swot_analysis(company_id: str):
+    """
+    Generate comprehensive SWOT analysis by triangulating:
+    - Financial data extracted from documents
+    - Secondary research findings
+    - Credit scoring results
+    - Entity onboarding data
+    """
+    result = generate_swot(company_id)
+    return SWOTResponse(**result)

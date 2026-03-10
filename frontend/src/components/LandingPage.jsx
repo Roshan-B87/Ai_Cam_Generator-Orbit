@@ -63,7 +63,7 @@ const FadeIn = ({ children, className = '', delay = 0 }) => {
   )
 }
 
-export const LandingPage = ({ onStart, isDark, toggleDark }) => {
+export const LandingPage = ({ onStart, onLogin, isDark, toggleDark, isLoggedIn }) => {
   const [timeManual, timeManualRef]   = useCounter(14, 2000)
   const [timeOrbit, timeOrbitRef]     = useCounter(8, 2000)
   const [accuracy, accuracyRef]       = useCounter(95, 2000)
@@ -85,12 +85,22 @@ export const LandingPage = ({ onStart, isDark, toggleDark }) => {
           <a href="#features" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Features</a>
           <a href="#architecture" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Architecture</a>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <button onClick={toggleDark} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors" aria-label="Toggle theme">
             {isDark ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} className="text-zinc-500" />}
           </button>
+          {!isLoggedIn && (
+            <button onClick={onLogin} className="px-5 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white transition-colors">
+              Log In
+            </button>
+          )}
+          {!isLoggedIn && (
+            <button onClick={onLogin} className="px-5 py-2.5 border border-zinc-300 dark:border-zinc-700 text-sm font-semibold rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all">
+              Sign Up
+            </button>
+          )}
           <button onClick={onStart} className="px-5 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-sm font-semibold rounded-full hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-lg">
-            Launch Engine
+            {isLoggedIn ? 'Launch Engine' : 'Try Live Demo'}
           </button>
         </div>
       </div>
@@ -117,6 +127,12 @@ export const LandingPage = ({ onStart, isDark, toggleDark }) => {
               Try Live Demo
               <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
             </button>
+            {!isLoggedIn && (
+              <button onClick={onLogin} className="px-8 py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all flex items-center gap-3 group shadow-xl">
+                Login / Sign Up
+                <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+            )}
             <a href="#comparison" className="px-8 py-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 font-bold rounded-2xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-all flex items-center gap-2">
               See Comparison <ArrowRight size={16} />
             </a>

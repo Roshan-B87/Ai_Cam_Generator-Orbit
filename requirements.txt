@@ -27,6 +27,11 @@ pillow
 pdfplumber
 tabulate
 
+# Auth
+passlib[bcrypt]
+python-jose[cryptography]
+bcrypt==4.0.1
+
 # Data
 pandas
 openpyxl

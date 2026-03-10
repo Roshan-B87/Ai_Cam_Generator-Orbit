@@ -1,10 +1,57 @@
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 
+
+class AuthResponse(BaseModel):
+    token: str
+    user: Dict          # {id, name, email, role, organization}
+    message: str
+
+
+class UserResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: str
+    organization: Optional[str] = None
+
+
 class IngestResponse(BaseModel):
     company_id: str
     files_received: int
     status: str                        # "processing" | "done" | "error"
+
+class EntityOnboardingResponse(BaseModel):
+    company_id: str
+    company_name: str
+    status: str
+    message: str
+
+class DocumentClassificationResponse(BaseModel):
+    company_id: str
+    classifications: List[Dict]        # [{filename, auto_type, confidence, ...}]
+    status: str
+
+class ClassificationApprovalResponse(BaseModel):
+    company_id: str
+    approved_count: int
+    status: str
+
+class ExtractionResultResponse(BaseModel):
+    company_id: str
+    document_type: str
+    extracted_data: Dict
+    schema_fields: List[str]
+    confidence: float
+    status: str
+
+class SWOTResponse(BaseModel):
+    company_id: str
+    strengths: List[str]
+    weaknesses: List[str]
+    opportunities: List[str]
+    threats: List[str]
+    summary: str
 
 class ResearchResponse(BaseModel):
     company_id: str

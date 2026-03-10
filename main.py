@@ -2,11 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import ingest, research, appraise, cam, mca
 from routers.databricks import router as databricks_router
+from routers.onboarding import router as onboarding_router
+from routers.auth import router as auth_router
 
 app = FastAPI(
     title="Intelli-Credit API",
     description="AI-powered Corporate Credit Appraisal Engine",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 # Allow React frontend to talk to this backend
@@ -17,6 +19,8 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:3000",
+        "https://intelli-credit.vercel.app",
+        "https://*.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -24,6 +28,8 @@ app.add_middleware(
 )
 
 # Register all route groups
+app.include_router(auth_router,          prefix="/auth",        tags=["Authentication"])
+app.include_router(onboarding_router,   prefix="/onboarding",  tags=["Entity Onboarding"])
 app.include_router(ingest.router,       prefix="/ingest",      tags=["Data Ingestor"])
 app.include_router(databricks_router,   prefix="/databricks",  tags=["Databricks Connector"])
 app.include_router(research.router,     prefix="/research",    tags=["Research Agent"])
