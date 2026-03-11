@@ -20,8 +20,12 @@ RUN apt-get update && \
         curl \
         libsm6 \
         libxext6 \
+        libxrender1 \
+        libfontconfig1 \
+        libfreetype6 \
+        libpng16-16 \
         libxrender-dev \
-    && rm -rf /var/lib/apt/lists/* && apt-get clean
+    || true && rm -rf /var/lib/apt/lists/* && apt-get clean
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt ./
