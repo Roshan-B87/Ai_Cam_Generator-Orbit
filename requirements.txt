@@ -12,17 +12,23 @@ groq
 # Web Search
 tavily-python
 
-# CPU-only PyTorch (200MB vs 800MB GPU version)
+# CPU-only PyTorch — pinned compatible set
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch
+torch==2.3.1+cpu
+numpy==1.26.4
 
 # RAG — embeddings + vector store
-langchain
-langchain-community
-langchain-huggingface
-langchain-text-splitters
-faiss-cpu
-sentence-transformers
+langchain==0.2.16
+langchain-community==0.2.16
+langchain-huggingface==0.0.3
+langchain-text-splitters==0.2.4
+langchain-core==0.2.38
+faiss-cpu==1.8.0
+sentence-transformers==2.7.0
+transformers==4.44.2
+huggingface-hub==0.24.7
+tokenizers==0.19.1
+accelerate==0.33.0
 
 # PDF Parsing
 pymupdf
