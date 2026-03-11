@@ -1,42 +1,47 @@
-# Dockerfile for Intelli-Credit (FastAPI + React)
-
-# Use official Python image as base
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# ── System dependencies ───────────────────────────────────────────────────────
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
-        libgl1-mesa-glx \
-        libglib2.0-0 \
+        gcc \
+        g++ \
+        # Tesseract OCR
         tesseract-ocr \
+        tesseract-ocr-eng \
         libtesseract-dev \
         libleptonica-dev \
-        ca-certificates \
-        wget \
-        curl \
+        # OpenCV / PyMuPDF runtime libs
+        libgl1 \
+        libglib2.0-0 \
         libsm6 \
         libxext6 \
         libxrender1 \
+        libxrender-dev \
         libfontconfig1 \
         libfreetype6 \
-        libpng16-16 \
-        libxrender-dev \
-    || true && rm -rf /var/lib/apt/lists/* && apt-get clean
+        # Poppler for pdfplumber
+        poppler-utils \
+        # Network / misc
+        ca-certificates \
+        curl \
+        wget \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt ./
+# ── Python dependencies ───────────────────────────────────────────────────────
+COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
+# ── App code ──────────────────────────────────────────────────────────────────
 COPY . .
 
-# Expose port for FastAPI
+# ── Uploads dir (gitignored but needed at runtime) ────────────────────────────
+RUN mkdir -p uploads
+
 EXPOSE 8000
 
-# Start FastAPI app with Uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
