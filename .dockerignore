@@ -1,0 +1,46 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments — never send to Docker
+.venv/
+venv/
+env/
+ENV/
+
+# Environment secrets — injected by Render at runtime
+.env
+
+# Git
+.git/
+.gitignore
+
+# Uploaded files — created fresh at runtime
+uploads/
+
+# Generated reports
+*.pdf
+*.docx
+*.faiss
+
+# Frontend — not needed in the backend container
+frontend/
+
+# IDE / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.log
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
