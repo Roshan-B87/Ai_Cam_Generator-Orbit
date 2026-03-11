@@ -12,9 +12,9 @@ groq
 # Web Search
 tavily-python
 
-# CPU-only PyTorch (200MB vs 800MB GPU version)
+# CPU-only PyTorch — explicit index to avoid downloading GPU version (saves ~600MB)
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch
+torch==2.2.2+cpu
 
 # RAG — embeddings + vector store
 langchain
