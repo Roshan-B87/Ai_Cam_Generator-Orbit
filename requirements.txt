@@ -12,34 +12,43 @@ groq
 # Web Search
 tavily-python
 
-# CPU-only PyTorch — explicit index to avoid downloading GPU version (saves ~600MB)
+# ── PyTorch CPU-only (must be >= 2.4 for sentence-transformers) ───────────────
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.2.2+cpu
+torch==2.4.0+cpu
 
-# RAG — embeddings + vector store
+# ── NumPy pinned to 1.x — torch 2.4 / sentence-transformers still need it ────
+numpy<2
+
+# ── RAG — embeddings + vector store ──────────────────────────────────────────
 langchain
 langchain-community
 langchain-huggingface
 langchain-text-splitters
 faiss-cpu
-sentence-transformers
+sentence-transformers==2.7.0
 
-# PDF Parsing
+# ── HuggingFace — pin transformers to last stable before the nn bug ───────────
+transformers==4.44.2
+huggingface-hub==0.24.7
+tokenizers==0.19.1
+accelerate==0.33.0
+
+# ── PDF Parsing ───────────────────────────────────────────────────────────────
 pymupdf
 pytesseract
 pillow
 pdfplumber
 tabulate
 
-# Auth
+# ── Auth ──────────────────────────────────────────────────────────────────────
 passlib[bcrypt]
 python-jose[cryptography]
 bcrypt==4.0.1
 
-# Data
+# ── Data ──────────────────────────────────────────────────────────────────────
 pandas
 openpyxl
 
-# Document Generation
+# ── Document Generation ───────────────────────────────────────────────────────
 python-docx
 reportlab
