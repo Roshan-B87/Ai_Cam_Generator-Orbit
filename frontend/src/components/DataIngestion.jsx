@@ -4,7 +4,7 @@ import {
   ChevronDown, Edit3, Shield, BarChart3, Users, Landmark,
   PieChart, FileUp, RefreshCw
 } from 'lucide-react'
-import { uploadDocuments, getIngestStatus, getClassifications, approveClassifications } from '../api/client'
+import { uploadDocuments, getIngestStatus, getClassifications, approveClassifications, pingBackend } from '../api/client'
 
 const DOC_TYPES = [
   { key: 'alm',            label: 'ALM (Asset-Liability Management)', icon: BarChart3,  color: 'blue',    desc: 'Maturity profiles, liquidity gaps, interest rate sensitivity' },
@@ -69,6 +69,11 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
       return
     }
     setUploading(true)
+
+    // Wake up Render backend first (free tier sleeps after 15 min)
+    onToast?.('Waking up backend... please wait', 'loading')
+    try { await pingBackend() } catch {}
+
     try {
       const fd = new FormData()
       fd.append('company_name', companyName)
@@ -87,7 +92,6 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
           setIngestStatus(statusRes.data)
           if (statusRes.data.status === 'ready') {
             setProcessing(false)
-            // Load auto-classifications
             const classRes = await getClassifications(id)
             if (classRes.data.classifications?.length) {
               setClassifications(classRes.data.classifications)
@@ -103,7 +107,11 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
       }
       setTimeout(poll, 2000)
     } catch (e) {
-      onToast?.('Upload failed — is the backend running?', 'error')
+      if (!e.response) {
+        onToast?.('Backend is starting up — please try again in 30 seconds', 'error')
+      } else {
+        onToast?.(`Upload failed: ${e.response?.data?.detail || e.message}`, 'error')
+      }
     }
     setUploading(false)
   }

@@ -77,8 +77,8 @@ async def upload_documents(
             shutil.copyfileobj(file.file, f)
         saved_files.append(file_path)
 
-        # Auto-classify based on filename
-        classification = _classify_document(file.filename)
+        # Auto-classify based on filename (text_sample added after parsing)
+        classification = _classify_document(file.filename, text_sample=file.filename)
         auto_classifications.append({
             "filename": file.filename,
             "auto_type": classification["type"],
