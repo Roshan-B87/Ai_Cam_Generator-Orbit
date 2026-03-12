@@ -11,24 +11,18 @@ app = FastAPI(
     version="2.0.0"
 )
 
-# Allow React frontend to talk to this backend
+# Allow all origins — safe for hackathon demo
+# In production, restrict to specific frontend URL
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "https://intelli-credit.vercel.app",
-        "https://*.vercel.app",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Register all route groups
-app.include_router(auth_router,          prefix="/auth",        tags=["Authentication"])
+app.include_router(auth_router,         prefix="/auth",        tags=["Authentication"])
 app.include_router(onboarding_router,   prefix="/onboarding",  tags=["Entity Onboarding"])
 app.include_router(ingest.router,       prefix="/ingest",      tags=["Data Ingestor"])
 app.include_router(databricks_router,   prefix="/databricks",  tags=["Databricks Connector"])
@@ -40,3 +34,7 @@ app.include_router(mca.router,          prefix="/mca",         tags=["MCA Regist
 @app.get("/")
 def health_check():
     return {"status": "Intelli-Credit API is live 🚀"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

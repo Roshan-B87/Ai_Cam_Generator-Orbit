@@ -125,7 +125,13 @@ export default function EntityOnboarding({ onComplete, existingData }) {
         ...payload,
       })
     } catch (e) {
-      setError(e.response?.data?.detail || 'Failed to create entity. Is the backend running?')
+      if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
+        setError('Backend is waking up (Render free tier). Please wait 30 seconds and try again.')
+      } else if (!e.response) {
+        setError('Cannot reach backend. Please wait 30 seconds and try again — it may be starting up.')
+      } else {
+        setError(e.response?.data?.detail || 'Failed to create entity. Please try again.')
+      }
     }
     setLoading(false)
   }
