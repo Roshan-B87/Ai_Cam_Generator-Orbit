@@ -1,10 +1,13 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   Upload, FileText, X, Loader2, CheckCircle2, AlertCircle,
-  ChevronDown, Edit3, Shield, BarChart3, Users, Landmark,
-  PieChart, FileUp, RefreshCw
+  Edit3, Shield, BarChart3, Users, Landmark,
+  PieChart, FileUp, Wifi, WifiOff
 } from 'lucide-react'
-import { uploadDocuments, getIngestStatus, getClassifications, approveClassifications, pingBackend } from '../api/client'
+import { uploadDocuments, getIngestStatus, getClassifications, approveClassifications } from '../api/client'
+import axios from 'axios'
+
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const DOC_TYPES = [
   { key: 'alm',            label: 'ALM (Asset-Liability Management)', icon: BarChart3,  color: 'blue',    desc: 'Maturity profiles, liquidity gaps, interest rate sensitivity' },
@@ -22,6 +25,22 @@ const TYPE_COLORS = {
   rose:    'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400',
 }
 
+// ── Wait until backend responds (up to 90 seconds) ──────────────────────────
+async function waitForBackend(onProgress) {
+  const MAX_TRIES = 18   // 18 × 5s = 90 seconds
+  for (let i = 0; i < MAX_TRIES; i++) {
+    try {
+      const res = await axios.get(`${BASE_URL}/`, { timeout: 8000 })
+      if (res.status === 200) return { ok: true }
+    } catch (e) {
+      const secs = (MAX_TRIES - i - 1) * 5
+      onProgress(`Backend waking up… ${secs}s remaining (attempt ${i + 1}/${MAX_TRIES})`)
+    }
+    await new Promise(r => setTimeout(r, 5000))
+  }
+  return { ok: false }
+}
+
 export default function DataIngestion({ companyId, companyName, entityData, onComplete, onToast }) {
   const [filesByType, setFilesByType] = useState({})
   const [classifications, setClassifications] = useState([])
@@ -29,9 +48,18 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
   const [processing, setProcessing] = useState(false)
   const [ingestStatus, setIngestStatus] = useState(null)
   const [editingClassification, setEditingClassification] = useState(null)
+  const [wakeStatus, setWakeStatus] = useState('')       // shown during wake-up
+  const [backendAlive, setBackendAlive] = useState(null) // null=unknown, true, false
   const fileRefs = useRef({})
 
-  // Load existing classifications
+  // ── Check backend on mount ──────────────────────────────────────────────────
+  useEffect(() => {
+    axios.get(`${BASE_URL}/`, { timeout: 8000 })
+      .then(() => setBackendAlive(true))
+      .catch(() => setBackendAlive(false))
+  }, [])
+
+  // ── Load existing classifications ───────────────────────────────────────────
   useEffect(() => {
     if (companyId) {
       getClassifications(companyId).then(r => {
@@ -46,17 +74,11 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
 
   const handleFileSelect = (docType) => (e) => {
     const newFiles = Array.from(e.target.files || [])
-    setFilesByType(prev => ({
-      ...prev,
-      [docType]: [...(prev[docType] || []), ...newFiles],
-    }))
+    setFilesByType(prev => ({ ...prev, [docType]: [...(prev[docType] || []), ...newFiles] }))
   }
 
   const removeFile = (docType, idx) => {
-    setFilesByType(prev => ({
-      ...prev,
-      [docType]: prev[docType].filter((_, i) => i !== idx),
-    }))
+    setFilesByType(prev => ({ ...prev, [docType]: prev[docType].filter((_, i) => i !== idx) }))
   }
 
   const allFiles = Object.entries(filesByType).flatMap(([type, files]) =>
@@ -68,24 +90,40 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
       onToast?.('Please upload at least one document', 'error')
       return
     }
+
     setUploading(true)
 
-    // Wake up Render backend first (free tier sleeps after 15 min)
-    onToast?.('Waking up backend... please wait', 'loading')
-    try { await pingBackend() } catch {}
+    // ── Step 1: Wake backend ─────────────────────────────────────────────────
+    setWakeStatus('Connecting to backend…')
+    onToast?.('Connecting to backend — please wait up to 60s', 'loading')
 
+    const { ok } = await waitForBackend(msg => setWakeStatus(msg))
+    setWakeStatus('')
+
+    if (!ok) {
+      setUploading(false)
+      setBackendAlive(false)
+      onToast?.('Backend unreachable after 90s. Check Render dashboard.', 'error')
+      return
+    }
+
+    setBackendAlive(true)
+    onToast?.('Backend alive — uploading documents…', 'loading')
+
+    // ── Step 2: Upload ───────────────────────────────────────────────────────
     try {
       const fd = new FormData()
       fd.append('company_name', companyName)
       if (companyId) fd.append('company_id', companyId)
       allFiles.forEach(({ file }) => fd.append('files', file))
+
       const res = await uploadDocuments(fd)
       const id = res.data.company_id
 
-      onToast?.('Documents uploaded — processing...', 'loading')
+      onToast?.('Documents uploaded — processing…', 'loading')
       setProcessing(true)
 
-      // Poll for completion
+      // ── Step 3: Poll until ready ─────────────────────────────────────────
       const poll = async () => {
         try {
           const statusRes = await getIngestStatus(id)
@@ -93,11 +131,12 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
           if (statusRes.data.status === 'ready') {
             setProcessing(false)
             const classRes = await getClassifications(id)
-            if (classRes.data.classifications?.length) {
-              setClassifications(classRes.data.classifications)
-            }
-            onToast?.('Documents parsed & indexed successfully', 'success')
+            if (classRes.data.classifications?.length) setClassifications(classRes.data.classifications)
+            onToast?.('Documents parsed & indexed successfully ✓', 'success')
             onComplete?.({ company_id: id, status: 'ready', classifications: classRes.data.classifications || [] })
+          } else if (statusRes.data.status === 'error') {
+            setProcessing(false)
+            onToast?.(`Processing error: ${statusRes.data.error || 'unknown'}`, 'error')
           } else {
             setTimeout(poll, 3000)
           }
@@ -106,13 +145,21 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
         }
       }
       setTimeout(poll, 2000)
+
     } catch (e) {
+      const status = e.response?.status
+      const detail = e.response?.data?.detail
       if (!e.response) {
-        onToast?.('Backend is starting up — please try again in 30 seconds', 'error')
+        onToast?.(`Network error — backend dropped the connection. Try again.`, 'error')
+      } else if (status === 422) {
+        onToast?.(`Validation error: ${detail || 'check form fields'}`, 'error')
+      } else if (status === 500) {
+        onToast?.(`Server error 500: ${detail || 'check Render logs'}`, 'error')
       } else {
-        onToast?.(`Upload failed: ${e.response?.data?.detail || e.message}`, 'error')
+        onToast?.(`Upload failed (${status}): ${detail || e.message}`, 'error')
       }
     }
+
     setUploading(false)
   }
 
@@ -125,7 +172,6 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
       final_type: overrideType || updated[idx].auto_type,
     }
     setClassifications(updated)
-
     try {
       await approveClassifications({
         company_id: companyId,
@@ -145,6 +191,31 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
 
   return (
     <div className="space-y-6">
+
+      {/* Backend status banner */}
+      {backendAlive === false && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400">
+          <WifiOff size={16} className="shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-bold">Backend is sleeping (Render free tier)</p>
+            <p className="text-xs mt-0.5">Click "Upload & Process" — it will wake up automatically (takes ~30–60s).</p>
+          </div>
+        </div>
+      )}
+      {backendAlive === true && (
+        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium">
+          <Wifi size={14} /> Backend is online
+        </div>
+      )}
+
+      {/* Wake-up progress */}
+      {wakeStatus && (
+        <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+          <Loader2 size={16} className="animate-spin text-amber-600 shrink-0" />
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-400">{wakeStatus}</p>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
         <div className="flex justify-between items-center">
@@ -172,13 +243,10 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
         </div>
       </div>
 
-      {/* Upload slots by document type */}
+      {/* Upload slots */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {DOC_TYPES.map(dt => {
           const files = filesByType[dt.key] || []
-          const classification = classifications.find(c =>
-            c.auto_type === dt.key || c.final_type === dt.key
-          )
           return (
             <div key={dt.key} className={`p-5 rounded-2xl border ${TYPE_COLORS[dt.color]} transition-all`}>
               <div className="flex items-start justify-between mb-3">
@@ -187,24 +255,19 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
                   <h4 className="text-sm font-bold">{dt.label}</h4>
                 </div>
                 {files.length > 0 && (
-                  <span className="text-[10px] font-bold bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-full">
-                    {files.length}
-                  </span>
+                  <span className="text-[10px] font-bold bg-white dark:bg-zinc-800 px-2 py-0.5 rounded-full">{files.length}</span>
                 )}
               </div>
               <p className="text-[10px] opacity-70 mb-3">{dt.desc}</p>
-
-              {/* Files list */}
               {files.map((f, i) => (
                 <div key={i} className="flex items-center justify-between p-2 mb-1 rounded-lg bg-white/60 dark:bg-zinc-800/60 text-xs">
                   <span className="truncate max-w-32 font-medium">{f.name}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] opacity-60">{(f.size / 1024).toFixed(0)} KB</span>
-                    <button onClick={() => removeFile(dt.key, i)} className="hover:opacity-70"><X size={12} /></button>
+                    <button onClick={() => removeFile(dt.key, i)}><X size={12} /></button>
                   </div>
                 </div>
               ))}
-
               <input
                 ref={el => fileRefs.current[dt.key] = el}
                 type="file" className="hidden" multiple
@@ -230,28 +293,24 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
           className="w-full py-4 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-2xl text-sm font-bold hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
         >
           {uploading || processing
-            ? <><Loader2 size={18} className="animate-spin" /> {processing ? 'Processing documents...' : 'Uploading...'}</>
+            ? <><Loader2 size={18} className="animate-spin" />
+                {wakeStatus ? 'Waking backend…' : processing ? 'Processing documents…' : 'Uploading…'}</>
             : <><Upload size={18} /> Upload & Process {totalFiles} Documents</>
           }
         </button>
       )}
 
-      {/* Auto-Classification Results (Human-in-the-loop) */}
+      {/* Classification results */}
       {classifications.length > 0 && (
         <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-bold flex items-center gap-2">
-              <Shield size={18} className="text-blue-500" />
-              Auto-Classification Results
+              <Shield size={18} className="text-blue-500" /> Auto-Classification Results
             </h3>
             <p className="text-[10px] text-zinc-400 uppercase font-bold">
               {classifications.filter(c => c.user_approved).length}/{classifications.length} Approved
             </p>
           </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-4">
-            Review and approve the AI classification. You can override any classification.
-          </p>
-
           <div className="space-y-2">
             {classifications.map((cls, idx) => (
               <div key={idx} className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
@@ -273,52 +332,31 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
                     </div>
                   </div>
                 </div>
-
                 <div className="flex items-center gap-2 shrink-0">
-                  {/* Override dropdown */}
                   {editingClassification === idx ? (
                     <select
                       value={cls.user_override_type || cls.auto_type}
-                      onChange={(e) => {
-                        handleApproveClassification(idx, true, e.target.value)
-                        setEditingClassification(null)
-                      }}
+                      onChange={(e) => { handleApproveClassification(idx, true, e.target.value); setEditingClassification(null) }}
                       className="text-xs px-2 py-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800"
-                      autoFocus
-                      onBlur={() => setEditingClassification(null)}
+                      autoFocus onBlur={() => setEditingClassification(null)}
                     >
-                      {DOC_TYPES.map(dt => (
-                        <option key={dt.key} value={dt.key}>{dt.label}</option>
-                      ))}
+                      {DOC_TYPES.map(dt => <option key={dt.key} value={dt.key}>{dt.label}</option>)}
                       <option value="gst_filing">GST Filing</option>
                       <option value="bank_statement">Bank Statement</option>
-                      <option value="rating_report">Rating Report</option>
                       <option value="other">Other</option>
                     </select>
                   ) : (
-                    <button
-                      onClick={() => setEditingClassification(idx)}
-                      className="text-[10px] font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1"
-                    >
+                    <button onClick={() => setEditingClassification(idx)}
+                      className="text-[10px] font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1">
                       <Edit3 size={10} /> Edit
                     </button>
                   )}
-
-                  {/* Approve / Deny */}
                   {!cls.user_approved ? (
                     <>
-                      <button
-                        onClick={() => handleApproveClassification(idx, true)}
-                        className="px-2 py-1 text-[10px] font-bold bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleApproveClassification(idx, false, 'rejected')}
-                        className="px-2 py-1 text-[10px] font-bold bg-rose-600 text-white rounded hover:bg-rose-700 transition-colors"
-                      >
-                        Deny
-                      </button>
+                      <button onClick={() => handleApproveClassification(idx, true)}
+                        className="px-2 py-1 text-[10px] font-bold bg-emerald-600 text-white rounded hover:bg-emerald-700">Approve</button>
+                      <button onClick={() => handleApproveClassification(idx, false, 'rejected')}
+                        className="px-2 py-1 text-[10px] font-bold bg-rose-600 text-white rounded hover:bg-rose-700">Deny</button>
                     </>
                   ) : (
                     <CheckCircle2 size={16} className="text-emerald-500" />
@@ -327,24 +365,23 @@ export default function DataIngestion({ companyId, companyName, entityData, onCo
               </div>
             ))}
           </div>
-
           {allApproved && (
             <div className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800">
               <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-2">
-                <CheckCircle2 size={14} /> All classifications approved. You can proceed to schema mapping & extraction.
+                <CheckCircle2 size={14} /> All classifications approved — proceed to schema mapping.
               </p>
             </div>
           )}
         </div>
       )}
 
-      {/* Processing status */}
+      {/* Processing spinner */}
       {processing && (
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex items-center gap-3">
           <Loader2 size={16} className="animate-spin text-blue-500" />
           <div>
-            <p className="text-sm font-medium">Processing documents...</p>
-            <p className="text-[10px] text-zinc-400">{ingestStatus?.status || 'Parsing'} — Building RAG index and extracting data</p>
+            <p className="text-sm font-medium">Processing documents…</p>
+            <p className="text-[10px] text-zinc-400">{ingestStatus?.status || 'Parsing'} — Building RAG index</p>
           </div>
         </div>
       )}
